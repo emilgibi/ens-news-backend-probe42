@@ -14,21 +14,15 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────
-GOOGLE_API_KEY       = os.getenv("GOOGLE_API_KEY")
-AZURE_ENDPOINT       = os.getenv("AZURE_ENDPOINT")
-API_KEY              = os.getenv("API_KEY")
+GOOGLE_API_KEY        = os.getenv("GOOGLE_API_KEY")
+AZURE_ENDPOINT        = os.getenv("OPENAI__AZURE_ENDPOINT")
+API_KEY               = os.getenv("OPENAI__API_KEY")
+MODEL_DEPLOYMENT_NAME = os.getenv("OPENAI__MODEL_DEPLOYMENT_NAME", "gpt-5.1")
 RADIUS_SMALL         = 100
 RADIUS_LARGE         = 300
 MIN_PLACES_THRESHOLD = 10
 LAT_LNG_DELTA        = 0.0009   # ~100m
 
-client1 = AzureOpenAI(
-    azure_endpoint=AZURE_ENDPOINT,
-    api_key=API_KEY,
-    api_version="2024-07-01-preview"
-)
-
-from openai import OpenAI
 import httpx
 
 # --------------------------------------------------
@@ -43,9 +37,14 @@ http_client = httpx.Client(
     )
 )
 
-
-client = OpenAI(
-    http_client=http_client
+# Azure OpenAI — was a plain OpenAI() client reading OPENAI_API_KEY, with a
+# separate, unused AzureOpenAI "client1" sitting dead alongside it. This is
+# now the one and only client, and it's already Azure.
+client = AzureOpenAI(
+    azure_endpoint=AZURE_ENDPOINT,
+    api_key=API_KEY,
+    api_version="2024-07-01-preview",
+    http_client=http_client,
 )
 
 
@@ -149,7 +148,7 @@ def classify_zone(address: str, lat: float, lng: float, places: list) -> dict:
     }}
     """
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL_DEPLOYMENT_NAME,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
     )
