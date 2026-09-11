@@ -4,7 +4,7 @@ import time
 import logging
 import requests
 from datetime import datetime, timezone
-from openai import OpenAI
+from openai import AzureOpenAI
 import httpx
 import urllib3
 import psycopg2.extras
@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────
-GOOGLE_API_KEY       = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY        = os.getenv("GOOGLE_API_KEY")
+AZURE_ENDPOINT        = os.getenv("OPENAI__AZURE_ENDPOINT")
+API_KEY               = os.getenv("OPENAI__API_KEY")
+MODEL_DEPLOYMENT_NAME = os.getenv("OPENAI__MODEL_DEPLOYMENT_NAME", "gpt-5.1")
 RADIUS_SMALL         = 100
 RADIUS_LARGE         = 300
 MIN_PLACES_THRESHOLD = 10
@@ -31,7 +34,13 @@ http_client = httpx.Client(
     limits=httpx.Limits(max_keepalive_connections=1, max_connections=2)
 )
 
-client = OpenAI(http_client=http_client)
+# Azure OpenAI — was a plain OpenAI() client reading OPENAI_API_KEY.
+client = AzureOpenAI(
+    azure_endpoint=AZURE_ENDPOINT,
+    api_key=API_KEY,
+    api_version="2024-07-01-preview",
+    http_client=http_client,
+)
 
 
 # ─────────────────────────────────────────
@@ -268,7 +277,7 @@ Respond ONLY in this exact JSON format:
 }}
     """
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL_DEPLOYMENT_NAME,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
     )

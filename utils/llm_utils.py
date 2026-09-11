@@ -2,24 +2,25 @@ from openai import AzureOpenAI
 from dotenv import load_dotenv
 load_dotenv()
 import httpx
-from openai import OpenAI
 from utils.db_utils import *
 
 
-azure_endpoint = os.getenv('AZURE_ENDPOINT')
-api_key = os.getenv('API_KEY')
-CONFIG_TYPE = os.getenv('CONFIG')
-
-# FOR LOCAL TESTING - CHANGE TO TRUE FOR FASTER PROMPT RESPONSE gpt-4-32k !!! ONLY IF REQUIRED
+# Kept for other modules that pull this in via `from .llm_analysis import
+# require_llm_response_speed` (e.g. models/item_model.py) — no longer used
+# for model selection here (see model_deployment_name below), but removing
+# the name outright would break that import.
 require_llm_response_speed = True
-if require_llm_response_speed or (CONFIG_TYPE.lower() == "demo"):
-    model_deployment_name = "gpt-4o-mini" #"ens-dev-gpt-4.1"
-else:
-    model_deployment_name = "gpt-4o"
 
+# Azure OpenAI — same OPENAI__* env var convention and gpt-5.1 deployment as
+# ens-orchestration-probe42's _call_openai(), replacing the public OpenAI
+# client (OPENAI_API_KEY) every call site in this project used to go
+# through. client1's separate, unused AzureOpenAI construction is gone —
+# this is now the one and only client, and it's already Azure.
+azure_endpoint = os.getenv('OPENAI__AZURE_ENDPOINT')
+api_key = os.getenv('OPENAI__API_KEY')
+model_deployment_name = os.getenv('OPENAI__MODEL_DEPLOYMENT_NAME', 'gpt-5.1')
 
-# Sanity check (optional but recommended)
-assert os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY not set"
+assert azure_endpoint and api_key, "OPENAI__AZURE_ENDPOINT / OPENAI__API_KEY not set"
 
 # --------------------------------------------------
 # Custom HTTPX client (corporate / proxy safe)
@@ -34,13 +35,9 @@ http_client = httpx.Client(
 )
 
 
-client = OpenAI(
-    http_client=http_client
-)
-
-# OpenAI
-client1 = AzureOpenAI(
+client = AzureOpenAI(
     azure_endpoint=azure_endpoint,
     api_key=api_key,
-    api_version="2024-07-01-preview"
+    api_version="2024-07-01-preview",
+    http_client=http_client,
 )
