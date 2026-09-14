@@ -29,8 +29,12 @@ http_client = httpx.Client(
     verify=False,              # ⚠️ Disable SSL verification (corporate proxy)
     timeout=60.0,
     limits=httpx.Limits(
-        max_keepalive_connections=1,
-        max_connections=2
+        # Azure deployment quota is 150k RPM / 15M TPM (GlobalStandard) — far
+        # above what this process can generate. The pool only needs to cover
+        # the ThreadPoolExecutor(max_workers=10) fan-out in item_model.py plus
+        # headroom for more than one screening session running concurrently.
+        max_keepalive_connections=40,
+        max_connections=40
     )
 )
 

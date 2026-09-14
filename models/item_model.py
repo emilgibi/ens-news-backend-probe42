@@ -592,16 +592,16 @@ async def news_link_extraction(name: str, company: str, start_date: date, end_da
 
 
 # Function used in news_link_extraction
-async def fetch(session, url, proxy=None, retries=3):
+async def fetch(session, url, proxy=None, retries=1):
     global news_link_extraction_flag
     """
     Fetch the HTML content of a URL asynchronously with increased delay.
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        # "Accept-Encoding": "gzip, deflate, br",
-        # "Accept-Language": "en-US,en;q=0.9",
-        # "Referer": "https://www.google.com/",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.google.com/",
     }
 
     try:
@@ -616,8 +616,8 @@ async def fetch(session, url, proxy=None, retries=3):
                 news_link_extraction_flag = False
                 print("flag:", response.status, news_link_extraction_flag)
                 logger.error(f"Received 429 for {url}, retrying after delay...")
-                await asyncio.sleep(uniform(5, 10))  # Longer delay before retry
                 if retries > 0:
+                    await asyncio.sleep(uniform(5, 10))  # Longer delay before retry
                     return await fetch(session, url, proxy, retries - 1)
                 else:
                     return None
@@ -1023,10 +1023,17 @@ async def get_news_ens_data(name: str, start_date: date, end_date: date, domain:
         news = await news_link_extraction_concurrent(name, company, start_date, end_date, country_code, request)
         count = 0
         logger.info(f"no of articles scrapped{len(news)}")
-        while not news and count < 1:
-            count += 1
-            logger.info(f"Retrying... attempt {count}")
-            news = await news_link_extraction(name, company, start_date, end_date, country_code, request)
+        if not news and news_link_extraction_flag is False:
+            # Last attempt failed with a 429 from Google News, not a transient
+            # error. news_link_extraction() builds the same search URL and
+            # hits the same endpoint, so retrying here would just repeat the
+            # same rate limit rather than recover from it.
+            logger.info("Skipping fallback retry — concurrent attempt was rate-limited (429)")
+        else:
+            while not news and count < 1:
+                count += 1
+                logger.info(f"Retrying... attempt {count}")
+                news = await news_link_extraction(name, company, start_date, end_date, country_code, request)
 
         if not news:
             logger.info(f"news flag: {news_link_extraction_flag}")
